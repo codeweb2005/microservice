@@ -37,6 +37,7 @@ jobs:
           build-args: |
             STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
             FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:latest
             ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
