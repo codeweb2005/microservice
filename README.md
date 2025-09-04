@@ -1,113 +1,138 @@
-# Food Delivery Microservices
+# Device Microservices Backend Deployment
 
-Dự án đã được chia thành 4 microservices chính và 1 API Gateway:
+## Tổng quan
+Hệ thống được triển khai theo mô hình **GitOps** với ArgoCD, **Autoscaling** bằng Karpenter, **Observability** qua Grafana & Prometheus, và **CI/CD** sử dụng GitHub Actions + Docker Registry.
 
-## Kiến trúc
+---
 
-```
-API Gateway (Port 4000)
-├── User Service (Port 4001)
-├── Device Service (Port 4002) 
-├── Cart Service (Port 4003)
-└── Order Service (Port 4004)
-```
-m
-## Services
+## 1. Triển khai ArgoCD
+**Mục tiêu:** Quản lý GitOps, đồng bộ manifest từ GitHub vào Kubernetes Cluster.
 
-### 1. User Service (Port 4001)
-- Quản lý đăng ký, đăng nhập người dùng
-- JWT authentication
-- Endpoints: `/api/user/register`, `/api/user/login`
-
-### 2. Device Service (Port 4002)
-- Quản lý sản phẩm/thiết bị
-- CRUD operations cho devices
-- Endpoints: `/api/device/list`, `/api/device/add`, `/api/device/remove`
-
-### 3. Cart Service (Port 4003)
-- Quản lý giỏ hàng của người dùng
-- Thêm/xóa sản phẩm khỏi giỏ hàng
-- Endpoints: `/api/cart/add`, `/api/cart/remove`, `/api/cart/get`
-
-### 4. Order Service (Port 4004)
-- Quản lý đơn hàng
-- Tích hợp Stripe payment
-- Endpoints: `/api/order/place`, `/api/order/list`, `/api/order/userorders`
-
-### 5. API Gateway (Port 4000)
-- Điều hướng requests đến các services tương ứng
-- Load balancing và routing
-- Endpoint chính cho frontend
-
-## Cách chạy
-
-### Chạy từng service riêng lẻ:
+### Bước 1: Deploy ArgoCD
 ```bash
-# Terminal 1 - User Service
-cd user-service
-npm install
-npm run dev
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+````
 
-# Terminal 2 - Device Service  
-cd device-service
-npm install
-npm run dev
+### Bước 2: Đăng nhập ArgoCD
 
-# Terminal 3 - Cart Service
-cd cart-service
-npm install
-npm run dev
-
-# Terminal 4 - Order Service
-cd order-service
-npm install
-npm run dev
-
-# Terminal 5 - API Gateway
-cd api-gateway
-npm install
-npm run dev
-```
-
-### Chạy tất cả với script (Windows):
 ```bash
-start-all.bat
+# Lấy password admin
+kubectl get secret argocd-initial-admin-secret -n argocd \
+  -o jsonpath="{.data.password}" | base64 -d
+
+# Forward port
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
 
-### Chạy với Docker:
+Truy cập tại: [https://localhost:8080](https://localhost:8080)
+
+### Bước 3: Tạo Application & Project
+
+* Tạo file `application.yaml` và `project.yaml` trong repo manifest.
+
+### Bước 4: Kiểm tra trong ArgoCD UI
+
+* Vào UI để xem trạng thái `Synced/Healthy`.
+
+---
+
+## 2. Triển khai Karpenter
+
+**Mục tiêu:** Tự động scale node theo nhu cầu workload.
+
+### Bước 1: Tạo manifest
+
+* **EC2NodeClass**: định nghĩa AMI, IAM Role, subnet, security group.
+* **NodePool**: định nghĩa chính sách autoscale, instance type, capacity type.
+
+### Bước 2: Cài đặt Helm chart
+
 ```bash
-docker-compose up --build
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --namespace karpenter --create-namespace \
+  --version <KARPENTER_VERSION> \
+  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=<KARPENTER_IAM_ROLE_ARN>" \
+  --set "settings.clusterName=<CLUSTER_NAME>" \
+  --set "settings.interruptionQueueName=<SQS_QUEUE_NAME>"
 ```
 
-## Environment Variables
+---
 
-Tạo file `.env` trong mỗi service với các biến:
+## 3. Triển khai Grafana và Prometheus
 
-```env
-MONGODB_URI=mongodb://localhost:27017/food-delivery
-JWT_SECRET=random#secret
-STRIPE_SECRET_KEY=your_stripe_key
-PORT=service_port
+**Mục tiêu:** Quan sát hệ thống (Monitoring & Observability).
+
+### Bước 1: Thêm repo Helm
+
+```bash
+helm repo add grafana-charts https://grafana.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
 ```
 
-## Database
+### Bước 2: Cài đặt Prometheus & Grafana
 
-Mỗi service kết nối đến cùng một MongoDB database nhưng có thể tách riêng nếu cần:
-- User Service: users collection
-- Device Service: devices collection  
-- Cart Service: users collection (cartData field)
-- Order Service: orders collection
+* Tạo file `prometheus-values.yaml` và `grafana-values.yaml` để override cấu hình.
 
-## Health Checks
+```bash
+helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring -f prometheus-values.yaml
+helm install grafana grafana-charts/grafana -n monitoring -f grafana-values.yaml
+```
 
-Mỗi service có endpoint `/health` để kiểm tra trạng thái:
-- User Service: http://localhost:4001/health
-- Device Service: http://localhost:4002/health
-- Cart Service: http://localhost:4003/health
-- Order Service: http://localhost:4004/health
-- API Gateway: http://localhost:4000/health
+### Bước 3: Lấy mật khẩu admin Grafana
 
-## Frontend Integration
+```bash
+kubectl get secret --namespace monitoring grafana \
+  -o jsonpath="{.data.admin-password}" | base64 --decode
+```
 
-Frontend chỉ cần trỏ đến API Gateway (port 4000) thay vì backend cũ (port 4000).
-Không cần thay đổi gì trong frontend code.
+---
+
+## 4. CI/CD Workflow
+
+**Mục tiêu:** Tự động build, push và deploy microservices.
+
+### Bước 1: Quản lý Secret
+
+* Thêm các **Secret** trong GitHub repo để lưu:
+
+  * API keys
+  * DB credentials
+  * Env variables
+* Tránh hard-code trong source code.
+
+### Bước 2: Flow CI/CD
+
+1. Developer push code mới lên GitHub.
+2. GitHub Actions pipeline:
+
+   * Build Docker image.
+   * Push image lên Docker Registry (ECR/GHCR).
+   * Update giá trị `image.tag` trong repo manifest.
+3. ArgoCD đồng bộ manifest → Kubernetes pull image mới và deploy.
+
+---
+
+## Sơ đồ luồng triển khai
+
+```mermaid
+flowchart TD
+    Dev[Developer] -->|Push code| GitHub[GitHub Repo]
+    GitHub -->|CI/CD Build & Push| Registry[Docker Registry]
+    GitHub -->|Update manifests| ManifestRepo[Manifest Repo]
+    ManifestRepo -->|GitOps Sync| ArgoCD[ArgoCD Controller]
+    ArgoCD -->|Apply manifests| K8s[Kubernetes Cluster]
+    K8s -->|Autoscale Nodes| Karpenter[Karpenter]
+    K8s -->|Metrics & Logs| Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana Dashboard]
+```
+
+---
+
+```
+
+---
+
+Bạn có muốn mình viết thêm sẵn file **`.github/workflows/deploy.yml`** mẫu để CI/CD chạy tự động trong GitHub Actions không?
+```
