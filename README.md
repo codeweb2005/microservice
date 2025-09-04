@@ -126,13 +126,6 @@ flowchart TD
     K8s -->|Autoscale Nodes| Karpenter[Karpenter]
     K8s -->|Metrics & Logs| Prometheus[Prometheus]
     Prometheus --> Grafana[Grafana Dashboard]
-```
 
----
 
-```
 
----
-
-Bạn có muốn mình viết thêm sẵn file **`.github/workflows/deploy.yml`** mẫu để CI/CD chạy tự động trong GitHub Actions không?
-```
