@@ -101,6 +101,7 @@ kubectl get secret --namespace monitoring grafana \
   * DB credentials
   * Environment variables
 * Avoid hard-coding sensitive data in the source code.
+<img width="901" height="498" alt="image" src="https://github.com/user-attachments/assets/7e25af21-c1bf-494e-b3ae-b7ac478b0cb0" />
 
 ### Step 2: CI/CD Flow
 
