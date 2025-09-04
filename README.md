@@ -1,52 +1,52 @@
 # Device Microservices Backend Deployment
 
-## Tổng quan
-Hệ thống được triển khai theo mô hình **GitOps** với ArgoCD, **Autoscaling** bằng Karpenter, **Observability** qua Grafana & Prometheus, và **CI/CD** sử dụng GitHub Actions + Docker Registry.
+## Overview
+This system is deployed following a **GitOps** workflow with ArgoCD, **Autoscaling** using Karpenter, **Observability** with Grafana & Prometheus, and **CI/CD** via GitHub Actions + Docker Registry.
 
 ---
 
-## 1. Triển khai ArgoCD
-**Mục tiêu:** Quản lý GitOps, đồng bộ manifest từ GitHub vào Kubernetes Cluster.
+## 1. Deploy ArgoCD
+**Goal:** Manage GitOps and synchronize manifests from GitHub to the Kubernetes Cluster.
 
-### Bước 1: Deploy ArgoCD
+### Step 1: Install ArgoCD
 ```bash
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ````
 
-### Bước 2: Đăng nhập ArgoCD
+### Step 2: Log in to ArgoCD
 
 ```bash
-# Lấy password admin
+# Get the admin password
 kubectl get secret argocd-initial-admin-secret -n argocd \
   -o jsonpath="{.data.password}" | base64 -d
 
-# Forward port
+# Port forward
 kubectl port-forward svc/argocd-server -n argocd 8080:443
 ```
 
-Truy cập tại: [https://localhost:8080](https://localhost:8080)
+Access at: [https://localhost:8080](https://localhost:8080)
 
-### Bước 3: Tạo Application & Project
+### Step 3: Create Application & Project
 
-* Tạo file `application.yaml` và `project.yaml` trong repo manifest.
+* Add `application.yaml` and `project.yaml` files in the manifest repository.
 
-### Bước 4: Kiểm tra trong ArgoCD UI
+### Step 4: Verify in ArgoCD UI
 
-* Vào UI để xem trạng thái `Synced/Healthy`.
+* Check resources status (`Synced/Healthy`) in the UI.
 
 ---
 
-## 2. Triển khai Karpenter
+## 2. Deploy Karpenter
 
-**Mục tiêu:** Tự động scale node theo nhu cầu workload.
+**Goal:** Automatically scale nodes based on workload demand.
 
-### Bước 1: Tạo manifest
+### Step 1: Create manifests
 
-* **EC2NodeClass**: định nghĩa AMI, IAM Role, subnet, security group.
-* **NodePool**: định nghĩa chính sách autoscale, instance type, capacity type.
+* **EC2NodeClass**: defines AMI, IAM Role, subnets, security groups.
+* **NodePool**: defines autoscaling policy, instance types, capacity type.
 
-### Bước 2: Cài đặt Helm chart
+### Step 2: Install Helm chart
 
 ```bash
 helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
@@ -59,11 +59,11 @@ helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
 
 ---
 
-## 3. Triển khai Grafana và Prometheus
+## 3. Deploy Grafana and Prometheus
 
-**Mục tiêu:** Quan sát hệ thống (Monitoring & Observability).
+**Goal:** Monitoring & observability for the system.
 
-### Bước 1: Thêm repo Helm
+### Step 1: Add Helm repositories
 
 ```bash
 helm repo add grafana-charts https://grafana.github.io/helm-charts
@@ -71,16 +71,16 @@ helm repo add prometheus-community https://prometheus-community.github.io/helm-c
 helm repo update
 ```
 
-### Bước 2: Cài đặt Prometheus & Grafana
+### Step 2: Install Prometheus & Grafana
 
-* Tạo file `prometheus-values.yaml` và `grafana-values.yaml` để override cấu hình.
+* Create `prometheus-values.yaml` and `grafana-values.yaml` to override default Helm configs.
 
 ```bash
 helm install prometheus prometheus-community/kube-prometheus-stack -n monitoring -f prometheus-values.yaml
 helm install grafana grafana-charts/grafana -n monitoring -f grafana-values.yaml
 ```
 
-### Bước 3: Lấy mật khẩu admin Grafana
+### Step 3: Retrieve Grafana admin password
 
 ```bash
 kubectl get secret --namespace monitoring grafana \
@@ -91,30 +91,30 @@ kubectl get secret --namespace monitoring grafana \
 
 ## 4. CI/CD Workflow
 
-**Mục tiêu:** Tự động build, push và deploy microservices.
+**Goal:** Automate build, push, and deploy of microservices.
 
-### Bước 1: Quản lý Secret
+### Step 1: Manage Secrets
 
-* Thêm các **Secret** trong GitHub repo để lưu:
+* Add **Secrets** in the GitHub repository for:
 
   * API keys
   * DB credentials
-  * Env variables
-* Tránh hard-code trong source code.
+  * Environment variables
+* Avoid hard-coding sensitive data in the source code.
 
-### Bước 2: Flow CI/CD
+### Step 2: CI/CD Flow
 
-1. Developer push code mới lên GitHub.
+1. Developer pushes new code to GitHub.
 2. GitHub Actions pipeline:
 
-   * Build Docker image.
-   * Push image lên Docker Registry (ECR/GHCR).
-   * Update giá trị `image.tag` trong repo manifest.
-3. ArgoCD đồng bộ manifest → Kubernetes pull image mới và deploy.
+   * Builds Docker image.
+   * Pushes image to Docker Registry (ECR/GHCR).
+   * Updates `image.tag` in the manifest repository.
+3. ArgoCD syncs the manifests → Kubernetes pulls the new image and redeploys.
 
 ---
 
-## Sơ đồ luồng triển khai
+## Deployment Workflow Diagram
 
 ```mermaid
 flowchart TD
@@ -126,6 +126,3 @@ flowchart TD
     K8s -->|Autoscale Nodes| Karpenter[Karpenter]
     K8s -->|Metrics & Logs| Prometheus[Prometheus]
     Prometheus --> Grafana[Grafana Dashboard]
-
-
-
