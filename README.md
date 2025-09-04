@@ -1,4 +1,5 @@
-<img width="975" height="739" alt="image" src="https://github.com/user-attachments/assets/1d3d2c6d-13f0-4bb0-b96f-142afe48cdf4" />
+<img width="3071" height="1511" alt="new drawio" src="https://github.com/user-attachments/assets/bd547105-6b23-4191-b1fe-e980ab790fb7" />
+
 
 # Device Microservices Backend Deployment
 
