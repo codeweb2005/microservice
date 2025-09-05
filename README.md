@@ -133,8 +133,11 @@ flowchart TD
 ```
 # Frontend for Amplify Deployment
 
-This repository contains the frontend application configured for deployment using **AWS Amplify**.  
+This repository contains the frontend application configured for deployment using **AWS Amplify**.
 Amplify provides hosting, CI/CD, and integration with backend resources such as APIs, authentication, and storage.
+
+https://github.com/codeweb2005/Frontend_Microservice_Amplify
+https://github.com/codeweb2005/Frontend-Resources
 
 # Helm Repository for ArgoCD Deployment
 
