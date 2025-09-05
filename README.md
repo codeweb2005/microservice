@@ -131,11 +131,3 @@ flowchart TD
     K8s -->|Metrics & Logs| Prometheus[Prometheus]
     Prometheus --> Grafana[Grafana Dashboard]
 
-# Helm Repository for ArgoCD Deployment
-
-This repository contains the Helm manifests used to deploy resources into the cluster via ArgoCD : https://github.com/codeweb2005/Helm
-
-# Frontend for Amplify Deployment
-
-This repository contains the frontend application configured for deployment using **AWS Amplify**.  
-Amplify provides hosting, CI/CD, and integration with backend resources such as APIs, authentication, and storage.
